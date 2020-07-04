@@ -123,10 +123,10 @@ class MotGunSimulation(object):
         (self.folder / 'beam.gdf').unlink()
         if self.ions_on:
             print('-> deleting initial ion distribution binary data')
-            (self.folder / 'beam.gdf').unlink()
+            (self.folder / 'ions.gdf').unlink()
         print('-> deleting ascii output data')
         (self.folder / 'output.txt').unlink()
 
-    def analyze(self, scan_dict=None):
+    def analyze(self):
         parameters_dict = {key: (getattr(self, key), value) for key, value in self.parameters.items()}
-        analyze(self.data, self.gun_length, self.folder / 'results', scan_dict, parameters_dict)
+        analyze(self.data, self.gun_length, self.folder / 'results', parameters_dict)

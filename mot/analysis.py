@@ -1,8 +1,9 @@
+import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import pathlib
 
-def analyze(data, gun_length, results_folder, scan_dict, parameters_dict):
+def analyze(data, gun_length, results_folder, parameters_dict):
     results_folder_path = pathlib.Path(results_folder)
     if not results_folder_path.exists():
         results_folder_path.mkdir(parents=True)
@@ -32,32 +33,25 @@ def analyze(data, gun_length, results_folder, scan_dict, parameters_dict):
     ])))) for time_block in data.time_blocks])
     charge = np.array([-1.60217662e-19 * len(time_block.electrons['x']) for time_block in data.time_blocks])
     screen_index = np.argmin(np.abs(z_centroid - gun_length))
-    with open(results_folder_path / 'data.txt', 'w+') as f:
-        f.write('Scan Parameters\n')
-        if scan_dict is None:
-            f.write('<none>\n')
-        else:
-            for key, value in scan_dict.items():
-                f.write(f'{key} = {value[0]:.16e} {value[1]}\n')
-        f.write('Values at end of gun\n')
-        f.write(f'time index = {screen_index}\n')
-        f.write(f'time = {ts[screen_index]:.16e} s\n')
-        f.write(f'x_centroid = {x_centroid[screen_index]:.16e} m\n')
-        f.write(f'y_centroid = {y_centroid[screen_index]:.16e} m\n')
-        f.write(f'z_centroid = {z_centroid[screen_index]:.16e} m\n')
-        f.write(f'x_std = {x_std[screen_index]:.16e} m\n')
-        f.write(f'y_std = {y_std[screen_index]:.16e} m\n')
-        f.write(f'z_std = {z_std[screen_index]:.16e} m\n')
-        f.write(f'x_emit = {x_emit[screen_index]:.16e} m\n')
-        f.write(f'y_emit = {y_emit[screen_index]:.16e} m\n')
-        f.write(f'emit_6d = {emit_6d[screen_index]:.16e} m\n')
-        f.write(f'charge = {charge[screen_index]:.16e} C\n')
-        f.write(f'All Parameters\n')
-        for key, value in parameters_dict.items():
-            if isinstance(value[0], str) or isinstance(value[0], bool):
-                f.write(f'{key} = {value[0]} {value[1]}\n')
-            else:
-                f.write(f'{key} = {value[0]:.16e} {value[1]}\n')
+    with open(results_folder_path / 'data.pickle', 'wb') as f:
+        data_dictionary = {
+            'parameters': parameters_dict,
+            'computed_values': {
+                'time_index': (screen_index, ''),
+                'time': (ts[screen_index], 's'),
+                'x_centroid': (x_centroid[screen_index], 'm'),
+                'y_centroid': (y_centroid[screen_index], 'm'),
+                'z_centroid': (z_centroid[screen_index], 'm'),
+                'x_std': (x_std[screen_index], 'm'),
+                'y_std': (y_std[screen_index], 'm'),
+                'z_std': (z_std[screen_index], 'm'),
+                'x_emit': (x_emit[screen_index], 'm'),
+                'y_emit': (y_emit[screen_index], 'm'),
+                'emit_6d': (emit_6d[screen_index], 'm^3'),
+                'charge': (charge[screen_index], 'C')
+            }
+        }
+        pickle.dump(data_dictionary, f)
 
     plt.title('At Gun Exit')
     plt.scatter(1e6 * data.time_blocks[screen_index].electrons['x'], data.time_blocks[screen_index].electrons['G'] * data.time_blocks[screen_index].electrons['Bx'], s=0.5)
