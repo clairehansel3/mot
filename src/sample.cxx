@@ -15,7 +15,7 @@ extern "C"
 void sample(const char* electrons_filename, const char* ions_filename,
   double peak_density, double sigma_r, double sigma_pr, double mot_z_offset,
   double laser_phi_x, double laser_phi_y, double laser_x, double laser_y,
-  double laser_z, double laser_width, bool ions_on);
+  double laser_z, double laser_width, unsigned seed, bool ions_on);
 
 }
 
@@ -53,14 +53,14 @@ static constexpr double m_ion_c = m_ion * c_light;
 void sample(const char* electrons_filename, const char* ions_filename,
   double peak_density, double sigma_r, double sigma_pr, double mot_z_offset,
   double laser_phi_x, double laser_phi_y, double laser_x, double laser_y,
-  double laser_z, double laser_width, bool ions_on)
+  double laser_z, double laser_width, unsigned seed, bool ions_on)
 {
   // Initialize Signal Handling
   SignalHandlerHelper signal_handler_helper{};
 
   // Initialize Random Numbers
   std::random_device random_device{};
-  std::mt19937 random_generator{random_device()};
+  std::mt19937 random_generator{seed == 0 ? random_device() : seed};
 
   // Open File
   std::ofstream file;

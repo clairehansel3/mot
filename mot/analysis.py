@@ -120,7 +120,7 @@ def analyze(data, gun_length, results_folder, parameters_dict):
     plt.plot(ts * 1e12, emit_6d)
     plt.axvline(x=ts[screen_index] * 1e12, color='black', label='Gun Exit')
     plt.xlabel('time (ps)')
-    plt.ylabel('$\\epsilon_{6d}$ ($\\mathrm{m}^2$)')
+    plt.ylabel('$\\epsilon_{6d}$ ($\\mathrm{m}^3$)')
     plt.legend()
     plt.savefig(results_folder_path / '6d_emit.png', dpi=300)
     plt.clf()
@@ -132,3 +132,259 @@ def analyze(data, gun_length, results_folder, parameters_dict):
     plt.legend()
     plt.savefig(results_folder_path / 'charge.png', dpi=300)
     plt.clf()
+
+
+r'''
+def dualCorrelationMovie(data_1, data_2, title_1, title_2):
+
+    names = ('z', 'x', 'y', 'bz', 'bx', 'by', 'g')
+    labels = ('$z - ct$ (mm)', '$x$ (mm)', '$y$ (mm)', '$\\beta_z$', '$\\beta_x$', '$\\beta_y$', '$\\gamma$')
+    is_center = (False, True, True, False, True, True, False)
+    functions = [
+        lambda data, time: 1000 * (data['z'] - 299792458 * time),
+        lambda data, time: 1000 * data['x'],
+        lambda data, time: 1000 * data['y'],
+        lambda data, time: data['Bz'],
+        lambda data, time: data['Bx'],
+        lambda data, time: data['By'],
+        lambda data, time: data['G']
+    ]
+
+    def smart_lower_bound(data_set, center):
+        if not center:
+            return max([data_set.mean() - 4 * data_set.std(), data_set.min()])
+        else:
+            slb = max([data_set.mean() - 4 * data_set.std(), data_set.min()])
+            sub =  min([data_set.mean() + 4 * data_set.std(), data_set.max()])
+            return -max([abs(slb), abs(sub)])
+
+
+    def smart_upper_bound(data_set, center):
+        if not center:
+            return min([data_set.mean() + 4 * data_set.std(), data_set.max()])
+        else:
+            slb = max([data_set.mean() - 4 * data_set.std(), data_set.min()])
+            sub =  min([data_set.mean() + 4 * data_set.std(), data_set.max()])
+            return max([abs(slb), abs(sub)])
+
+    electron_mins = [min([smart_lower_bound(functions[i](block.electrons, block.time), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+    ion_mins = [min([smart_lower_bound(functions[i](block.ions, 0.0), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+    electron_maxs = [max([smart_upper_bound(functions[i](block.electrons, block.time), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+    ion_maxs = [max([smart_upper_bound(functions[i](block.ions, 0.0), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+
+    electron_mins = [min([smart_lower_bound(functions[i](block.electrons, block.time), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+    ion_mins = [min([smart_lower_bound(functions[i](block.ions, 0.0), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+    electron_maxs = [max([smart_upper_bound(functions[i](block.electrons, block.time), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+    ion_maxs = [max([smart_upper_bound(functions[i](block.ions, 0.0), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+
+    for i in range(len(names)):
+        name1 = names[i]
+        label1 = labels[i]
+        function1 = functions[i]
+        for j in range(i + 1, len(names)):
+            name2 = names[j]
+            label2 = labels[j]
+            function2 = functions[j]
+            for k, time_block in enumerate(self.time_blocks):
+                plt.title('Electrons, t = ' + str(int(round(time_block.time * 1e12))) + 'ps')
+                plt.scatter(function1(time_block.electrons, time_block.time), function2(time_block.electrons, time_block.time), s=0.5)
+                if name1 == 'z':
+                    plt.plot([1000 * (gun_length - 299792458 * time_block.time), 1000 * (gun_length - 299792458 * time_block.time)], [electron_mins[j], electron_maxs[j]], 'k')
+                if name2 == 'z':
+                    plt.plot([electron_mins[i], electron_maxs[i]], [1000 * (gun_length - 299792458 * time_block.time), 1000 * (gun_length - 299792458 * time_block.time)], 'k')
+                plt.xlabel(label1)
+                plt.ylabel(label2)
+                plt.xlim(electron_mins[i], electron_maxs[i])
+                plt.ylim(electron_mins[j], electron_maxs[j])
+                os.system(f'mkdir -p {results_folder}/frames/electrons/{name1}_{name2}')
+                plt.savefig(f'{results_folder}/frames/electrons/{name1}_{name2}/t_{k}.png', dpi=200)
+                plt.clf()
+                plt.title('Ions, t = ' + str(int(round(time_block.time * 1e12))) + 'ps')
+                plt.scatter(function1(time_block.ions, 0.0), function2(time_block.ions, 0.0), s=0.5)
+                plt.xlabel('z (mm)' if label1 == '$z - ct$ (mm)' else label1)
+                plt.ylabel('z (mm)' if label2 == '$z - ct$ (mm)' else label2)
+                plt.xlim(ion_mins[i], ion_maxs[i])
+                plt.ylim(ion_mins[j], ion_maxs[j])
+                os.system(f'mkdir -p {results_folder}/frames/ions/{name1}_{name2}')
+                plt.savefig(f'{results_folder}/frames/ions/{name1}_{name2}/t_{k}.png', dpi=200)
+                plt.clf()
+            os.system(f'rm {results_folder}/electrons_{name1}_{name2}.mp4')
+            os.system(f'rm {results_folder}/ions_{name1}_{name2}.mp4')
+            print(f'-> making {name1}-{name2} plot')
+            subprocess.run(f'movie {results_folder}/frames/electrons/{name1}_{name2}/t_%d.png {results_folder}/electrons_{name1}_{name2}.mp4', check=True, shell=True, capture_output=True)
+            subprocess.run(f'movie {results_folder}/frames/ions/{name1}_{name2}/t_%d.png {results_folder}/ions_{name1}_{name2}.mp4', check=True, shell=True, capture_output=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def histogramMovie(data, gun_length, results_folder):
+    names = ('z', 'x', 'y', 'bz', 'bx', 'by', 'g')
+    labels = ('$z - ct$ (mm)', '$x$ (mm)', '$y$ (mm)', '$\\beta_z$', '$\\beta_x$', '$\\beta_y$', '$\\gamma$')
+    is_center = (False, True, True, False, True, True, False)
+    functions = [
+        lambda data, time: 1000 * (data['z'] - 299792458 * time),
+        lambda data, time: 1000 * data['x'],
+        lambda data, time: 1000 * data['y'],
+        lambda data, time: data['Bz'],
+        lambda data, time: data['Bx'],
+        lambda data, time: data['By'],
+        lambda data, time: data['G']
+    ]
+
+    def smart_lower_bound(data_set, center):
+        if not center:
+            return max([data_set.mean() - 4 * data_set.std(), data_set.min()])
+        else:
+            slb = max([data_set.mean() - 4 * data_set.std(), data_set.min()])
+            sub =  min([data_set.mean() + 4 * data_set.std(), data_set.max()])
+            return -max([abs(slb), abs(sub)])
+
+
+    def smart_upper_bound(data_set, center):
+        if not center:
+            return min([data_set.mean() + 4 * data_set.std(), data_set.max()])
+        else:
+            slb = max([data_set.mean() - 4 * data_set.std(), data_set.min()])
+            sub =  min([data_set.mean() + 4 * data_set.std(), data_set.max()])
+            return max([abs(slb), abs(sub)])
+
+    electron_mins = [min([smart_lower_bound(functions[i](block.electrons, block.time), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+    ion_mins = [min([smart_lower_bound(functions[i](block.ions, 0.0), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+    electron_maxs = [max([smart_upper_bound(functions[i](block.electrons, block.time), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+    ion_maxs = [max([smart_upper_bound(functions[i](block.ions, 0.0), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+
+    for block in self.time_blocks:
+        print('time: ', block.time)
+        print(functions[0](block.electrons, block.time))
+        print(smart_lower_bound(functions[0](block.electrons, block.time), center=is_center[0]))
+        print(smart_upper_bound(functions[0](block.electrons, block.time), center=is_center[0]))
+        print('done')
+
+    electron_hists = [[np.histogram(functions[i](block.electrons, block.time), range=(electron_mins[i], electron_maxs[i]), bins=200) for block in self.time_blocks] for i in range(len(names))]
+    ion_hists = [[np.histogram(functions[i](block.ions, 0.0), range=(ion_mins[i], ion_maxs[i]), bins=200) for block in self.time_blocks] for i in range(len(names))]
+    electron_hist_maxs = [max([hist[i][0].max() for i in range(len(self.time_blocks))]) for hist in electron_hists]
+    ion_hist_maxs = [max([hist[i][0].max() for i in range(len(self.time_blocks))]) for hist in ion_hists]
+
+    for i in range(len(names)):
+        name = names[i]
+        label = labels[i]
+        function = functions[i]
+        for j, time_block in enumerate(self.time_blocks):
+            e_counts, e_bins = electron_hists[i][j]
+            i_counts, i_bins = ion_hists[i][j]
+            plt.title('Electrons, t = ' + str(int(round(time_block.time * 1e12))) + 'ps')
+            plt.hist(0.5 * (e_bins[:-1] + e_bins[1:]), e_bins, weights=e_counts)
+            if name == 'z':
+                plt.plot([1000 * (gun_length - 299792458 * time_block.time), 1000 * (gun_length - 299792458 * time_block.time)], [0, electron_hist_maxs[i]], 'k')
+            plt.xlim(electron_mins[i], electron_maxs[i])
+            plt.ylim(0, electron_hist_maxs[i])
+            plt.xlabel(label)
+            os.system(f'mkdir -p {results_folder}/frames/electrons/{name}')
+            plt.savefig(f'{results_folder}/frames/electrons/{name}/t_{j}.png', dpi=200)
+            plt.clf()
+            plt.title('Ions, t = ' + str(int(round(time_block.time * 1e12))) + 'ps')
+            plt.hist(0.5 * (i_bins[:-1] + i_bins[1:]), i_bins, weights=i_counts)
+            plt.xlim(ion_mins[i], ion_maxs[i])
+            plt.ylim(0, ion_hist_maxs[i])
+            plt.xlabel('z (mm)' if label == '$z - ct$ (mm)' else label)
+            os.system(f'mkdir -p {results_folder}/frames/ions/{name}')
+            plt.savefig(f'{results_folder}/frames/ions/{name}/t_{j}.png', dpi=200)
+            plt.clf()
+        os.system(f'rm {results_folder}/electrons_{name}.mp4')
+        os.system(f'rm {results_folder}/ions_{name}.mp4')
+        print(f'-> making {name} histogram')
+        subprocess.run(f'movie {results_folder}/frames/electrons/{name}/t_%d.png {results_folder}/electrons_{name}.mp4', check=True, shell=True, capture_output=True)
+        subprocess.run(f'movie {results_folder}/frames/ions/{name}/t_%d.png {results_folder}/ions_{name}.mp4', check=True, shell=True, capture_output=True)
+
+def correlationMovie(self, gun_length, results_folder='.', smart=False):
+    names = ('z', 'x', 'y', 'bz', 'bx', 'by', 'g')
+    labels = ('$z - ct$ (mm)', '$x$ (mm)', '$y$ (mm)', '$\\beta_z$', '$\\beta_x$', '$\\beta_y$', '$\\gamma$')
+    is_center = (False, True, True, False, True, True, False)
+    functions = [
+        lambda data, time: 1000 * (data['z'] - 299792458 * time),
+        lambda data, time: 1000 * data['x'],
+        lambda data, time: 1000 * data['y'],
+        lambda data, time: data['Bz'],
+        lambda data, time: data['Bx'],
+        lambda data, time: data['By'],
+        lambda data, time: data['G']
+    ]
+
+    if smart:
+
+        def smart_lower_bound(data_set, center):
+            if not center:
+                return max([data_set.mean() - 4 * data_set.std(), data_set.min()])
+            else:
+                slb = max([data_set.mean() - 4 * data_set.std(), data_set.min()])
+                sub =  min([data_set.mean() + 4 * data_set.std(), data_set.max()])
+                return -max([abs(slb), abs(sub)])
+
+
+        def smart_upper_bound(data_set, center):
+            if not center:
+                return min([data_set.mean() + 4 * data_set.std(), data_set.max()])
+            else:
+                slb = max([data_set.mean() - 4 * data_set.std(), data_set.min()])
+                sub =  min([data_set.mean() + 4 * data_set.std(), data_set.max()])
+                return max([abs(slb), abs(sub)])
+
+        electron_mins = [min([smart_lower_bound(functions[i](block.electrons, block.time), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+        ion_mins = [min([smart_lower_bound(functions[i](block.ions, 0.0), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+        electron_maxs = [max([smart_upper_bound(functions[i](block.electrons, block.time), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+        ion_maxs = [max([smart_upper_bound(functions[i](block.ions, 0.0), center=is_center[i]) for block in self.time_blocks]) for i in range(len(names))]
+
+    else:
+
+        electron_mins = [min([functions[i](block.electrons, block.time).min() for block in self.time_blocks]) for i in range(len(names))]
+        ion_mins = [min([functions[i](block.ions, 0.0).min() for block in self.time_blocks]) for i in range(len(names))]
+        electron_maxs = [max([functions[i](block.electrons, block.time).max() for block in self.time_blocks]) for i in range(len(names))]
+        ion_maxs = [max([functions[i](block.ions, 0.0).max() for block in self.time_blocks]) for i in range(len(names))]
+
+    for i in range(len(names)):
+        name1 = names[i]
+        label1 = labels[i]
+        function1 = functions[i]
+        for j in range(i + 1, len(names)):
+            name2 = names[j]
+            label2 = labels[j]
+            function2 = functions[j]
+            for k, time_block in enumerate(self.time_blocks):
+                plt.title('Electrons, t = ' + str(int(round(time_block.time * 1e12))) + 'ps')
+                plt.scatter(function1(time_block.electrons, time_block.time), function2(time_block.electrons, time_block.time), s=0.5)
+                if name1 == 'z':
+                    plt.plot([1000 * (gun_length - 299792458 * time_block.time), 1000 * (gun_length - 299792458 * time_block.time)], [electron_mins[j], electron_maxs[j]], 'k')
+                if name2 == 'z':
+                    plt.plot([electron_mins[i], electron_maxs[i]], [1000 * (gun_length - 299792458 * time_block.time), 1000 * (gun_length - 299792458 * time_block.time)], 'k')
+                plt.xlabel(label1)
+                plt.ylabel(label2)
+                plt.xlim(electron_mins[i], electron_maxs[i])
+                plt.ylim(electron_mins[j], electron_maxs[j])
+                os.system(f'mkdir -p {results_folder}/frames/electrons/{name1}_{name2}')
+                plt.savefig(f'{results_folder}/frames/electrons/{name1}_{name2}/t_{k}.png', dpi=200)
+                plt.clf()
+                plt.title('Ions, t = ' + str(int(round(time_block.time * 1e12))) + 'ps')
+                plt.scatter(function1(time_block.ions, 0.0), function2(time_block.ions, 0.0), s=0.5)
+                plt.xlabel('z (mm)' if label1 == '$z - ct$ (mm)' else label1)
+                plt.ylabel('z (mm)' if label2 == '$z - ct$ (mm)' else label2)
+                plt.xlim(ion_mins[i], ion_maxs[i])
+                plt.ylim(ion_mins[j], ion_maxs[j])
+                os.system(f'mkdir -p {results_folder}/frames/ions/{name1}_{name2}')
+                plt.savefig(f'{results_folder}/frames/ions/{name1}_{name2}/t_{k}.png', dpi=200)
+                plt.clf()
+            os.system(f'rm {results_folder}/electrons_{name1}_{name2}.mp4')
+            os.system(f'rm {results_folder}/ions_{name1}_{name2}.mp4')
+            print(f'-> making {name1}-{name2} plot')
+            subprocess.run(f'movie {results_folder}/frames/electrons/{name1}_{name2}/t_%d.png {results_folder}/electrons_{name1}_{name2}.mp4', check=True, shell=True, capture_output=True)
+            subprocess.run(f'movie {results_folder}/frames/ions/{name1}_{name2}/t_%d.png {results_folder}/ions_{name1}_{name2}.mp4', check=True, shell=True, capture_output=True)
+'''

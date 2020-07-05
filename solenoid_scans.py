@@ -2,6 +2,7 @@
 
 import daemon
 import itertools
+import json
 import matplotlib.pyplot as plt
 import mot
 import multiprocessing
@@ -14,7 +15,7 @@ import sys
 
 processes = 25
 
-magnetic_field_strengths = np.linspace(0.2, 0.8, 25, endpoint=True)
+magnetic_field_strengths = np.linspace(0.2, 0.8, 5, endpoint=True)
 solenoid_lengths = np.linspace(0.10, 0.15, 25, endpoint=True)
 solenoid_positions = np.linspace(0.1, 0.12, 25, endpoint=True)
 scan_parameters = np.array(list(itertools.product(magnetic_field_strengths, solenoid_lengths, solenoid_positions)))
@@ -51,11 +52,24 @@ def run_simulation(i):
     s.deleteData()
     return i
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NpEncoder, self).default(obj)
+
 def main():
-    with multiprocessing.Pool(processes) as pool:
-        results = pool.imap_unordered(run_simulation, range(len(scan_parameters)))
-        for result in results:
-            print(f'simulation {result} complete')
+    #with multiprocessing.Pool(processes) as pool:
+    #    results = pool.imap_unordered(run_simulation, range(len(scan_parameters)))
+    #    for result in results:
+    #        print(f'simulation {result} complete')
+
+    os.system('mkdir -p solenoid_scans.py.results')
 
     all_scan_results = None
     for i in range(len(scan_parameters)):
@@ -66,6 +80,8 @@ def main():
             for key, value in scan_results.items():
                 for key2, value2 in value.items():
                     all_scan_results[key][key2].append(value2[0])
+            with open(f'/a/chansel/mot/solenoid_scans/{i}/results/data.json', 'w+') as f:
+                json.dump(scan_results, f, indent=4, cls=NpEncoder)
 
     shape = (len(magnetic_field_strengths), len(solenoid_lengths), len(solenoid_positions))
     sol_strength = np.array(all_scan_results['parameters']['sol_strength']).reshape(shape)
@@ -102,38 +118,42 @@ def main():
         ('$\\sigma_x$ ($\\mu$m)', x_std, 1e6, 'x_std'),
         ('$\\sigma_y$ ($\\mu$m)', y_std, 1e6, 'y_std'),
         ('$\\sigma_z$ (mm)', z_std, 1e3, 'z_std'),
-        ('$\\epsilon_x$ ($\\mu$m)', x_emit, 1e6, 'x_emit'),
-        ('$\\epsilon_y$ ($\\mu$m)', y_emit, 1e6, 'y_emit'),
-        ('$\\epsilon_{\\mathrm{6D}}$ (m$^2$)', emit_6d, 1e6, 'emit_6d'),
+        ('$\\epsilon_x$ (nm)', x_emit, 1e9, 'x_emit'),
+        ('$\\epsilon_y$ (nm)', y_emit, 1e9, 'y_emit'),
+        ('$\\epsilon_{\\mathrm{6D}}$ (m$^3$)', emit_6d, 1, 'emit_6d'),
         ('$Q$ (fC)', charge, 1e15, 'charge')
     ]
 
-    os.system('mkdir -p solenoid_scans.results')
-
     for i, magnetic_field_strength in enumerate(magnetic_field_strengths):
         for plot_info in plot_infos:
-            plt.pcolormesh(solenoid_lengths_midpoint * 100, solenoid_positions_midpoint * 100, plot_info[2] * plot_info[1][i, :, :].T)
+            plt.title('$B_{\\mathrm{max}} = ' + '{:.2f}'.format(magnetic_field_strength) + '$ T')
+            plt.pcolormesh(solenoid_lengths_midpoint * 100, solenoid_positions_midpoint * 100, plot_info[2] * plot_info[1][i, :, :].T, vmin=(plot_info[2] * plot_info[1].min()), vmax=(plot_info[2] * plot_info[1].max()))
             plt.xlabel('Solenoid Length (cm)')
             plt.ylabel('Solenoid Position (cm)')
             plt.colorbar(label=plot_info[0])
-            plt.savefig(f'solenoid_scans.results/{plot_info[3]}_{i}.png', dpi=300)
+            plt.savefig(f'solenoid_scans.py.results/{plot_info[3]}_{i}.png', dpi=300)
             plt.clf()
 
-if os.path.isfile(f'{__file__}.kill'):
-    raise Exception(f'{__file__} is already running!')
+    os.system('tar -czvf solenoid_scans.py.results.tgz solenoid_scans.py.results')
 
-with open(f'{__file__}.log', 'w+') as f:
-    with daemon.DaemonContext(
-            stdout=f,
-            stderr=f,
-            working_directory=pathlib.Path(__file__).parent,
-        ):
-        with open(f'{__file__}.kill', 'w+') as f:
-            f.write(f'#!/bin/bash\nkill -SIGINT {os.getpid()}\n')
-        subprocess.run(['chmod', '+x', f'{__file__}.kill'], check=True)
-        try:
-            main()
-            pathlib.Path(f'{__file__}.kill').unlink()
-        except:
-            pathlib.Path(f'{__file__}.kill').unlink()
-            raise
+if len(sys.argv) >= 2 and sys.argv[1] == '--no-detach':
+    main()
+else:
+    if os.path.isfile(f'{__file__}.kill'):
+        raise Exception(f'{__file__} is already running!')
+
+    with open(f'{__file__}.log', 'w+') as f:
+        with daemon.DaemonContext(
+                stdout=f,
+                stderr=f,
+                working_directory=pathlib.Path(__file__).parent,
+            ):
+            with open(f'{__file__}.kill', 'w+') as f:
+                f.write(f'#!/bin/bash\nkill -SIGINT {os.getpid()}\n')
+            subprocess.run(['chmod', '+x', f'{__file__}.kill'], check=True)
+            try:
+                main()
+                pathlib.Path(f'{__file__}.kill').unlink()
+            except:
+                pathlib.Path(f'{__file__}.kill').unlink()
+                raise

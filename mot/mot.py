@@ -77,7 +77,7 @@ class MotGunSimulation(object):
             for key, item in dict.items():
                 setattr(self, key, item)
 
-    def initializeParticles(self):
+    def initializeParticles(self, seed=0):
         print('-> sampling particles')
         sample_cxx_library.sample(
             ctypes.c_char_p(str(self.folder / 'beam.txt').encode('utf-8')),
@@ -92,6 +92,7 @@ class MotGunSimulation(object):
             ctypes.c_double(self.laser_y),
             ctypes.c_double(self.laser_z),
             ctypes.c_double(self.laser_width),
+            ctypes.c_uint(seed),
             ctypes.c_bool(self.ions_on)
         )
         print('-> binarizing initial electron distribution')
