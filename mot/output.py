@@ -45,9 +45,20 @@ class TimeBlock(Block):
     def __repr__(self):
         return 'Time Block (t = {:.2f} ps)\nColumns: '.format(self.time * 1e12) + ' '.join(self.data.keys()) + '\nParticles: ' + str(self.particles) + '\n'
 
+def getTimeBlocks(filename):
+    with open(filename, 'r') as f:
+        f.readline()
+        f.readline()
+        f.readline()
+        for line in f:
+            assert line.split()[0] == 'time'
+            print(f'reading time block t = {float(line.split()[1]):.2e} s')
+            yield TimeBlock(f, float(line.split()[1]))
+
 class Data(object):
 
     def __init__(self, filename):
+        print('--> reading data')
         self.filename = filename
         self.blocks = []
         self.times = []
@@ -60,13 +71,13 @@ class Data(object):
             self.cputime = float(f.readline().split()[1])
             for line in f:
                 if line.split()[0] == 'position':
-                    print(f'reading time block {len(self.position_blocks) + 1}, z = {float(line.split()[1])} m')
+                    print(f'reading time block {len(self.position_blocks) + 1}, z = {float(line.split()[1])*1e3:.1f}mm')
                     block = PositionBlock(f, float(line.split()[1]))
                     self.blocks.append(block)
                     self.positions.append(block.position)
                     self.position_blocks.append(block)
                 elif line.split()[0] == 'time':
-                    print(f'reading time block {len(self.time_blocks) + 1}, t = {float(line.split()[1])} s')
+                    print(f'reading time block {len(self.time_blocks) + 1}, t = {float(line.split()[1])*1e12:.1f}ps')
                     block = TimeBlock(f, float(line.split()[1]))
                     self.blocks.append(block)
                     self.times.append(block.time)

@@ -32,7 +32,7 @@ def analyze(data, gun_length, results_folder, parameters_dict):
         time_block.electrons['G'] * time_block.electrons['Bz'],
     ])))) for time_block in data.time_blocks])
     charge = np.array([-1.60217662e-19 * len(time_block.electrons['x']) for time_block in data.time_blocks])
-    screen_index = np.argmin(np.abs(z_centroid - gun_length))
+    screen_index = np.argmin(np.abs(z_centroid - 0.12))
     with open(results_folder_path / 'data.pickle', 'wb') as f:
         data_dictionary = {
             'parameters': parameters_dict,

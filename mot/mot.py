@@ -13,11 +13,10 @@ peak_field = {self.peak_field:.16e}; # [V/m]
 rf_frequency = {self.rf_frequency:.16e}; # [Hz]
 rf_phase_deg = {self.rf_phase_deg:.16e}; # [deg]
 pyramid_height = {self.pyramid_height:.16e}; # [m]
-gun_length = {self.gun_length:.16e}; # [m]
 sol_z = {self.sol_z:.16e}; # [m]
 sol_radius = {self.sol_radius:.16e}; # [m]
 sol_length = {self.sol_length:.16e}; # [m]
-sol_current = {(2 * self.sol_strength * np.sqrt((0.5 * self.sol_length) ** 2 + self.sol_radius ** 2) / vacuum_permeability):.16e}; # [A]
+sol_current = {(2 * self.sol_strength * np.sqrt((0.5 * self.sol_length) ** 2 + self.sol_radius ** 2) / (vacuum_permeability * self.sol_length)):.16e}; # [A]
 
 # Beam
 setfile("beam", "{self.folder / 'beam.gdf'}");
@@ -31,11 +30,11 @@ bzsolenoid("wcs", "z", sol_z, sol_radius, sol_length, sol_current);
 
 # Boundary
 rmax("wcs", "I", 0.002);
-zminmax("wcs", "I", -pyramid_height, 2 * gun_length);
+zminmax("wcs", "I", -pyramid_height, 1);
 
 # Simulation
-{'spacecharge3Dmesh' if self.spacecharge == 'approximate' else 'spacecharge3D'}();
-snapshot(0, 5e-10, 5e-12);
+{'spacecharge3Dmesh();' if self.spacecharge == 'approximate' else ('spacecharge3D();' if self.spacecharge == 'exact' else '')}
+snapshot(0, {self.tmax:.16}, {self.tstep:.16});
 '''
 
 shared_library_extension = 'dylib' if platform.system() == 'Darwin' else 'so'
@@ -58,13 +57,14 @@ class MotGunSimulation(object):
         'rf_frequency': 'Hz',
         'rf_phase_deg': 'deg',
         'pyramid_height': 'm',
-        'gun_length': 'm',
         'sol_radius': 'm',
         'sol_strength': 'T',
         'sol_length': 'm',
         'sol_z': 'm',
         'ions_on': '',
-        'spacecharge': ''
+        'spacecharge': '',
+        'tmax': 's',
+        'tstep': 's'
     }
 
     def __init__(self, folder, dict=None):
@@ -128,6 +128,9 @@ class MotGunSimulation(object):
         print('-> deleting ascii output data')
         (self.folder / 'output.txt').unlink()
 
-    def analyze(self):
+    def parametersDict(self):
+        return {key: (getattr(self, key), value) for key, value in self.parameters.items()}
+
+    def analyze(self, gun_length):
         parameters_dict = {key: (getattr(self, key), value) for key, value in self.parameters.items()}
-        analyze(self.data, self.gun_length, self.folder / 'results', parameters_dict)
+        analyze(self.data, gun_length, self.folder / 'results', parameters_dict)
