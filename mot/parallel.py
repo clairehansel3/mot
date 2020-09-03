@@ -10,6 +10,11 @@ import subprocess
 def run_helper(do_scan, item):
     return do_scan(item[0], item[1], *item[2])
 
+def reshape(L, S):
+    # From Paul Panzer @ StackOverflow
+    return list(functools.reduce(lambda x, y: map(list, zip(*y*(x,))), (iter(L), *S[:0:-1])))
+
+
 def run(this, do_scan, *parameters, processes=1, detach=True, data_folder_path=None, suffix=None):
     """
     Runs a parameter scan in parallel.
@@ -59,13 +64,16 @@ def run(this, do_scan, *parameters, processes=1, detach=True, data_folder_path=N
                     if processes > number_of_scans:
                         processes = number_of_scans
                     function = functools.partial(run_helper, do_scan)
+                    results = [None for _ in range(number_of_scans)]
                     if processes == 1:
                         for result in map(function, iter):
-                            print(f'simulation {result} complete')
+                            results[result[0]] = result[1]
+                            print(f'simulation {result[0]} complete')
                     else:
                         with multiprocessing.Pool(processes) as pool:
                             for result in pool.imap_unordered(function, iter):
-                                print(f'simulation {result} complete')
+                                results[result[0]] = result[1]
+                                print(f'simulation {result[0]} complete')
                     kill_script.unlink()
                 except:
                     kill_script.unlink()
@@ -79,14 +87,18 @@ def run(this, do_scan, *parameters, processes=1, detach=True, data_folder_path=N
         if processes > number_of_scans:
             processes = number_of_scans
         function = functools.partial(run_helper, do_scan)
+        results = [None for _ in range(number_of_scans)]
         if processes == 1:
             for result in map(function, iter):
-                print(f'simulation {result} complete')
+                results[result[0]] = result[1]
+                print(f'simulation {result[0]} complete')
         else:
             with multiprocessing.Pool(processes) as pool:
                 for result in pool.imap_unordered(function, iter):
-                    print(f'simulation {result} complete')
+                    results[result[0]] = result[1]
+                    print(f'simulation {result[0]} complete')
     print(f'Done with simulation {simulation_name}')
+    return reshape(results, tuple(len(parameter) for parameter in parameters))
 
 def detach_run_parallel(this, functions, processes=1, suffix=None):
     script = pathlib.Path(this).resolve(strict=True)
